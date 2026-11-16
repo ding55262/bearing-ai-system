@@ -23,64 +23,24 @@ warnings.filterwarnings("ignore")
 plt.rcParams["font.sans-serif"] = ["SimHei"]
 plt.rcParams["axes.unicode_minus"] = False
 
-# ===================== 数据库与安全配置 =====================
-DB_FILE = "users.db"
-
-def init_db():
-    """初始化数据库，如果不存在则创建一个默认管理员账号"""
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (username TEXT PRIMARY KEY, password TEXT)''')
-    # 检查是否已有 admin 账号，没有则创建
-    c.execute("SELECT * FROM users WHERE username='admin'")
-    if not c.fetchone():
-        # 默认 admin 密码 123456
-        hashed_pw = hashlib.sha256("123456".encode()).hexdigest()
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", hashed_pw))
-    conn.commit()
-    conn.close()
-
-def add_user(username, password):
-    """注册新用户，密码进行 SHA256 加密"""
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-    try:
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pw))
-        conn.commit()
-        return True
-    except sqlite3.IntegrityError:
-        return False # 用户名已存在
-    finally:
-        conn.close()
-
-def verify_user(username, password):
-    """验证用户登录"""
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
-    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed_pw))
-    user = c.fetchone()
-    conn.close()
-    return user is not None
-
-# 初始化数据库
-init_db()
-
-# ===================== 读取 Token 配置 =====================
+# ===================== 从 Secrets 安全读取配置 =====================
 try:
     COZE_API_KEY = st.secrets["COZE_API_KEY"]
     COZE_BOT_ID = st.secrets["COZE_BOT_ID"]
+    ADMIN_USER = st.secrets.get("ADMIN_USER", "admin")
+    ADMIN_PASS = st.secrets.get("ADMIN_PASS", "123456")
 except Exception:
     COZE_API_KEY = "pat_填入你新生成的Token"
     COZE_BOT_ID = "7706858644994179091"
+    ADMIN_USER = "admin"
+    ADMIN_PASS = "123456"
 
-# ===================== 极致工业风 UI 样式注入 =====================
+# ===================== 工业风 UI 样式注入 =====================
 def inject_custom_css():
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        
         .stApp {
             background: radial-gradient(circle at 50% -20%, #1e293b 0%, #0f172a 60%, #020617 100%);
             font-family: 'Inter', "SimHei", sans-serif; color: #e2e8f0;
@@ -88,27 +48,60 @@ def inject_custom_css():
         header { background: transparent !important; }
         h1 { background: -webkit-linear-gradient(45deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
         h2, h3 { color: #f8fafc !important; font-weight: 600 !important; }
-        [data-testid="stSidebar"] { background: rgba(15, 23, 42, 0.6) !important; backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.05); }
+        
+        [data-testid="stSidebar"] {
+            background: rgba(15, 23, 42, 0.6) !important;
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
         [data-testid="stSidebar"] * { color: #cbd5e1 !important; }
+        
         .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div > div {
-            background: rgba(30, 41, 59, 0.6) !important; color: #f8fafc !important; border: 1px solid rgba(56, 189, 248, 0.3) !important; border-radius: 8px !important; transition: all 0.3s;
+            background: rgba(30, 41, 59, 0.6) !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(56, 189, 248, 0.3) !important;
+            border-radius: 8px !important;
+            transition: all 0.3s;
         }
         .stTextInput > div > div > input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
-        [data-testid="stMetric"] { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); }
+
+        [data-testid="stMetric"] {
+            background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
+            padding: 20px !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
         [data-testid="stMetricLabel"] { color: #94a3b8 !important; font-weight: 600; }
         [data-testid="stMetricValue"] { background: -webkit-linear-gradient(45deg, #38bdf8, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
-        .stButton > button { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3); transition: all 0.3s ease; }
+
+        .stButton > button {
+            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important;
+            color: white !important; border: none !important; border-radius: 8px !important;
+            font-weight: 600 !important; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3); transition: all 0.3s ease;
+        }
         .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5); }
+
         .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: rgba(15, 23, 42, 0.5); padding: 6px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
         .stTabs [data-baseweb="tab"] { background-color: transparent; border-radius: 8px; padding: 10px 24px; color: #94a3b8 !important; font-weight: 600; border: none; transition: all 0.2s; }
         .stTabs [data-baseweb="tab"]:hover { background-color: rgba(255, 255, 255, 0.05); }
         .stTabs [aria-selected="true"] { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-bottom: 2px solid #38bdf8 !important; }
+
         [data-testid="stFileUploadDropzone"] { background: rgba(30, 41, 59, 0.4) !important; border: 2px dashed rgba(56, 189, 248, 0.3) !important; border-radius: 12px; transition: all 0.3s; }
         [data-testid="stFileUploadDropzone"]:hover { border-color: #38bdf8 !important; }
         [data-testid="stFileUploadDropzone"] * { color: #cbd5e1 !important; }
+        
         [data-testid="stChatMessage"] { background-color: rgba(30, 41, 59, 0.7) !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; padding: 12px !important; margin-bottom: 10px; }
-        .stAlert { background: rgba(30, 41, 59, 0.8) !important; border: 1px solid rgba(255, 255, 255, 0.1) !important; border-radius: 10px !important; backdrop-filter: blur(10px); }
-        .stAlert * { color: #f8fafc !important; }
+
+        /* 🌟 核心修复：强制所有提示框背景变暗，文字变白 */
+        div[data-testid="stNotification"] {
+            background-color: rgba(30, 41, 59, 0.95) !important;
+            border: 1px solid rgba(56, 189, 248, 0.4) !important;
+            border-radius: 10px !important;
+            backdrop-filter: blur(10px);
+        }
+        div[data-testid="stNotification"] * {
+            color: #f8fafc !important;
+        }
+        
         [data-testid="stDataFrame"] * { color: #000000 !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -116,13 +109,13 @@ def inject_custom_css():
 st.set_page_config(page_title="智驭轮枢·工业智能诊断平台", layout="wide", initial_sidebar_state="collapsed")
 inject_custom_css()
 
-# ===================== 登录/注册认证模块 =====================
+# =====================  登录认证拦截模块 =====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.current_user = ""
 
 if not st.session_state.logged_in:
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<br><br><br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         st.markdown("""
@@ -132,7 +125,6 @@ if not st.session_state.logged_in:
         </div>
         """, unsafe_allow_html=True)
         
-        # 使用 Tabs 实现登录和注册切换
         tab_login, tab_register = st.tabs(["🔐 账号登录", "📝 工程师注册"])
         
         with tab_login:
@@ -163,7 +155,7 @@ if not st.session_state.logged_in:
                     st.error("该账号已存在，请换一个用户名。")
     st.stop()
 
-# ===================== 物理尺寸与全局参数配置区 =====================
+# =====================  物理尺寸与全局参数配置区 =====================
 BALL_RADIUS = 12.0 
 SEG_LEN = 1024
 STEP = 1024
@@ -172,7 +164,29 @@ LABEL_DICT = {0: "正常", 1: "内圈故障", 2: "外圈故障", 3: "滚动体�
 LABEL_LIST = list(LABEL_DICT.values())
 CLASS_NUM = len(LABEL_DICT)
 
-FEATURE_NAMES = ["标准差", "偏度", "峭度", "峰值因子", "脉冲因子", "频谱重心", "包络谱峰值", "包络谱能量"]
+# ===================== 数据库操作函数 =====================
+def init_db():
+    conn = sqlite3.connect("users.db"); c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
+    c.execute("SELECT * FROM users WHERE username='admin'")
+    if not c.fetchone():
+        hashed_pw = hashlib.sha256("123456".encode()).hexdigest()
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", ("admin", hashed_pw))
+    conn.commit(); conn.close()
+
+def add_user(username, password):
+    conn = sqlite3.connect("users.db"); c = conn.cursor()
+    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+    try:
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pw)); conn.commit(); return True
+    except sqlite3.IntegrityError: return False
+    finally: conn.close()
+
+def verify_user(username, password):
+    conn = sqlite3.connect("users.db"); c = conn.cursor()
+    hashed_pw = hashlib.sha256(password.encode()).hexdigest()
+    c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed_pw))
+    user = c.fetchone(); conn.close(); return user is not None
 
 # ===================== CWRU 映射表 =====================
 CWRU_FILE_MAP = {97: 0, 105: 1, 118: 3, 130: 2, 98: 0, 106: 1, 119: 3, 131: 2, 99: 0, 107: 1, 120: 3, 132: 2, 100: 0, 108: 1, 121: 3, 133: 2, 169: 1, 185: 3, 197: 2, 170: 1, 186: 3, 198: 2, 171: 1, 187: 3, 199: 2, 172: 1, 188: 3, 200: 2, 209: 1, 222: 3, 234: 2, 210: 1, 223: 3, 235: 2}
@@ -185,8 +199,7 @@ def chat_with_bot(user_message):
     headers = {"Authorization": f"Bearer {COZE_API_KEY}", "Content-Type": "application/json"}
     payload = {"bot_id": COZE_BOT_ID, "user_id": "streamlit_user", "stream": False, "auto_save_history": True, "additional_messages": [{"role": "user", "content": user_message, "content_type": "text"}]}
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        data = response.json()
+        response = requests.post(url, headers=headers, json=payload, timeout=30); data = response.json()
         if data.get("code") != 0: return f"API 报错: {data.get('msg')}"
         chat_id = data["data"]["id"]; conversation_id = data["data"]["conversation_id"]
         retrieve_url = "https://api.coze.cn/v3/chat/retrieve"
@@ -312,6 +325,7 @@ def plot_signal_analysis(sig, fs):
     plt.tight_layout(); return fig
 
 # ===================== 主界面 =====================
+init_db()
 st.title("🛞 智驭轮枢·跨设备高泛化轴承故障诊断系统")
 
 with st.sidebar:
@@ -428,7 +442,7 @@ if "model" in st.session_state:
                         with c2: st.image("gearbox.png", use_container_width=True)
                         if LABEL_DICT[final] == "正常": st.success("✅ 减速器整体运行平稳。")
                         else: st.error(f"🚨 **异常警报**：红圈所示输入端轴承检测到 **{LABEL_DICT[final]}**！")
-                    else: st.warning("⚠️ 未找到减速器图片，请将图片命名为 `gearbox.png` 放入 assets 文件夹。")
+                    else: st.warning("⚠️ 未找到减速器图片，请将图片命名为 `gearbox.png` 放入根目录。")
                 with tab_micro: st.plotly_chart(render_bearing_3d(LABEL_DICT[final]), use_container_width=True)
                 with tab_signal: st.pyplot(plot_signal_analysis(sig, pred_fs))
                 with tab_math:
