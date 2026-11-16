@@ -29,6 +29,7 @@ try:
     ADMIN_USER = st.secrets.get("ADMIN_USER", "admin")
     ADMIN_PASS = st.secrets.get("ADMIN_PASS", "123456")
 except Exception:
+    # 如果本地没有 secrets.toml，使用默认值占位
     COZE_API_KEY = "pat_填入你新生成的Token"
     COZE_BOT_ID = "7706858644994179091"
     ADMIN_USER = "admin"
@@ -192,39 +193,22 @@ def render_bearing_3d(fault_class):
     fig.update_layout(scene=dict(xaxis=dict(showbackground=False, showgrid=False, visible=False), yaxis=dict(showbackground=False, showgrid=False, visible=False), zaxis=dict(showbackground=False, showgrid=False, visible=False), aspectmode='data', camera=dict(up=dict(x=0, y=0, z=1), eye=dict(x=1.5, y=1.5, z=1.5))), margin=dict(l=0, r=0, b=0, t=0), height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     return fig
 
-# ===================== 🌟 信号特征绘图函数 (改用 Plotly，完美解决乱码) =====================
+# ===================== 🌟 信号特征绘图 (Plotly 版，解决乱码) =====================
 def plot_signal_analysis_plotly(sig, fs):
     plot_len = min(len(sig), 4096)
     time = np.arange(plot_len) / fs
+    env = np.abs(hilbert(sig)); env_spec = np.abs(np.fft.rfft(env - np.mean(env))); freqs = np.fft.rfftfreq(len(sig), d=1/fs)
+    max_freq = min(500, fs / 2); valid_idx = freqs <= max_freq
     
-    env = np.abs(hilbert(sig))
-    env_spec = np.abs(np.fft.rfft(env - np.mean(env)))
-    freqs = np.fft.rfftfreq(len(sig), d=1/fs)
-    max_freq = min(500, fs / 2)
-    valid_idx = freqs <= max_freq
-    
-    # 创建上下两个子图
     fig = sp.make_subplots(rows=2, cols=1, subplot_titles=("时域波形 (局部截取)", "Hilbert 包络谱 (提取故障特征频率)"), vertical_spacing=0.15)
-    
-    # 时域波形
     fig.add_trace(go.Scatter(x=time, y=sig[:plot_len], mode='lines', line=dict(color='#38bdf8', width=1), name="时域波形"), row=1, col=1)
-    
-    # 包络谱
     fig.add_trace(go.Scatter(x=freqs[valid_idx], y=env_spec[valid_idx], mode='lines', line=dict(color='#ef4444', width=1.5), name="包络谱"), row=2, col=1)
     
-    fig.update_layout(
-        height=600,
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(30, 41, 59, 0.5)',
-        font=dict(color='#e2e8f0'), # 全局字体颜色
-        margin=dict(l=40, r=20, t=40, b=40),
-        showlegend=False
-    )
+    fig.update_layout(height=600, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(30, 41, 59, 0.5)', font=dict(color='#e2e8f0'), margin=dict(l=40, r=20, t=40, b=40), showlegend=False)
     fig.update_xaxes(title_text="时间 (s)", gridcolor='rgba(255,255,255,0.1)', row=1, col=1)
     fig.update_yaxes(title_text="幅值", gridcolor='rgba(255,255,255,0.1)', row=1, col=1)
     fig.update_xaxes(title_text="频率 (Hz)", gridcolor='rgba(255,255,255,0.1)', row=2, col=1)
     fig.update_yaxes(title_text="包络幅值", gridcolor='rgba(255,255,255,0.1)', row=2, col=1)
-    
     return fig
 
 # ===================== 🎨 样式注入与初始化 =====================
@@ -238,10 +222,8 @@ def inject_custom_css():
         h2, h3 { color: #f8fafc !important; font-weight: 600 !important; }
         [data-testid="stSidebar"] { background: rgba(15, 23, 42, 0.6) !important; backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.05); }
         
-        /* 🌟 核心修复：强制所有小字（label）变亮 */
-        .stApp label, .stApp p, .stApp span, [data-testid="stWidgetLabel"] *, [data-testid="stFileUploadDropzone"] * {
-            color: #cbd5e1 !important;
-        }
+        /* 🌟 强制所有小字变亮 */
+        .stApp label, .stApp p, .stApp span, [data-testid="stWidgetLabel"] *, [data-testid="stFileUploadDropzone"] * { color: #cbd5e1 !important; }
         
         .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div > div { background: rgba(30, 41, 59, 0.6) !important; color: #f8fafc !important; border: 1px solid rgba(56, 189, 248, 0.3) !important; border-radius: 8px !important; transition: all 0.3s; }
         .stTextInput > div > div > input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
@@ -250,18 +232,13 @@ def inject_custom_css():
         [data-testid="stMetricValue"] { background: -webkit-linear-gradient(45deg, #38bdf8, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
         .stButton > button { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3); transition: all 0.3s ease; }
         .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5); }
-        
-        /* 🌟 修复 Tabs 未选中状态文字太暗的问题 */
         .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: rgba(15, 23, 42, 0.5); padding: 6px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
         .stTabs [data-baseweb="tab"] { background-color: transparent; border-radius: 8px; padding: 10px 24px; color: #94a3b8 !important; font-weight: 600; border: none; transition: all 0.2s; }
         .stTabs [data-baseweb="tab"]:hover { background-color: rgba(255, 255, 255, 0.05); }
         .stTabs [aria-selected="true"] { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-bottom: 2px solid #38bdf8 !important; }
-        
         [data-testid="stFileUploadDropzone"] { background: rgba(30, 41, 59, 0.4) !important; border: 2px dashed rgba(56, 189, 248, 0.3) !important; border-radius: 12px; transition: all 0.3s; }
         [data-testid="stFileUploadDropzone"]:hover { border-color: #38bdf8 !important; }
         [data-testid="stChatMessage"] { background-color: rgba(30, 41, 59, 0.7) !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; padding: 12px !important; margin-bottom: 10px; }
-        div[data-testid="stNotification"] { background-color: rgba(30, 41, 59, 0.95) !important; border: 1px solid rgba(56, 189, 248, 0.4) !important; border-radius: 10px !important; backdrop-filter: blur(10px); }
-        div[data-testid="stNotification"] * { color: #f8fafc !important; }
         [data-testid="stDataFrame"] * { color: #000000 !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -421,10 +398,19 @@ if "model" in st.session_state:
                 scaler, clf = st.session_state["model"]; feats = extract_features(segs, pred_fs); preds = clf.predict(scaler.transform(feats))
                 values, counts = np.unique(preds, return_counts=True); final = values[np.argmax(counts)]; vote_dict = {LABEL_DICT[v]: int(c) for v, c in zip(values, counts)}
                 st.markdown(f"""<div style="background: rgba(0, 200, 83, 0.15); border-left: 5px solid #00c853; padding: 20px; border-radius: 8px; margin-bottom: 20px;"><h3 style="margin:0; color: #fff;">最终诊断结果：<span style="color: #00c853;">{LABEL_DICT[final]}</span></h3><p style="margin-top: 10px; color: #94a3b8; font-size: 14px;">切片投票分布（共切出 {len(preds)} 个窗口）：{vote_dict}</p></div>""", unsafe_allow_html=True)
+                
                 st.markdown("---"); st.subheader("💡 AI 专家维修建议")
                 with st.spinner("AI 专家正在根据诊断结果生成维修方案..."):
                     auto_prompt = f"系统刚刚诊断出当前轴承状态为：{LABEL_DICT[final]}。请直接给出3条以内最核心的维修建议和排查方向，语言要简练专业。"
-                    auto_advice = chat_with_bot(auto_prompt); st.info(auto_advice)
+                    auto_advice = chat_with_bot(auto_prompt)
+                    
+                    # 🌟 终极方案：抛弃 st.info，用 HTML 渲染 AI 建议，彻底解决文字太浅的问题
+                    st.markdown(f"""
+                    <div style="background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(56, 189, 248, 0.4); border-left: 6px solid #38bdf8; padding: 20px; border-radius: 10px; color: #f8fafc !important; line-height: 1.8; font-size: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                        {auto_advice}
+                    </div>
+                    """, unsafe_allow_html=True)
+                
                 st.markdown("---")
                 tab_macro, tab_micro, tab_signal, tab_math = st.tabs(["🏭 宏观：减速器", "⚙️ 微观：轴承 3D", "📊 信号解析", "📐 数学模型"])
                 with tab_macro:
@@ -436,7 +422,6 @@ if "model" in st.session_state:
                     else: st.warning("⚠️ 未找到减速器图片，请将图片命名为 `gearbox.png` 放入根目录。")
                 with tab_micro: st.plotly_chart(render_bearing_3d(LABEL_DICT[final]), use_container_width=True)
                 with tab_signal: 
-                    # 🌟 这里调用新的 Plotly 画图函数
                     fig_signal = plot_signal_analysis_plotly(sig, pred_fs)
                     st.plotly_chart(fig_signal, use_container_width=True)
                 with tab_math:
