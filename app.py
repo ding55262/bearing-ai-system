@@ -14,8 +14,6 @@ import json
 import time
 import sqlite3
 import hashlib
-
-# 3D 渲染库
 import plotly.graph_objects as go
 import trimesh
 
@@ -23,7 +21,7 @@ warnings.filterwarnings("ignore")
 plt.rcParams["font.sans-serif"] = ["SimHei"]
 plt.rcParams["axes.unicode_minus"] = False
 
-# ===================== 从 Secrets 安全读取配置 =====================
+# ===================== 🌟 从 Secrets 安全读取配置 =====================
 try:
     COZE_API_KEY = st.secrets["COZE_API_KEY"]
     COZE_BOT_ID = st.secrets["COZE_BOT_ID"]
@@ -35,127 +33,7 @@ except Exception:
     ADMIN_USER = "admin"
     ADMIN_PASS = "123456"
 
-# ===================== 工业风 UI 样式注入 =====================
-def inject_custom_css():
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
-        
-        .stApp {
-            background: radial-gradient(circle at 50% -20%, #1e293b 0%, #0f172a 60%, #020617 100%);
-            font-family: 'Inter', "SimHei", sans-serif; color: #e2e8f0;
-        }
-        header { background: transparent !important; }
-        h1 { background: -webkit-linear-gradient(45deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
-        h2, h3 { color: #f8fafc !important; font-weight: 600 !important; }
-        
-        [data-testid="stSidebar"] {
-            background: rgba(15, 23, 42, 0.6) !important;
-            backdrop-filter: blur(20px);
-            border-right: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        [data-testid="stSidebar"] * { color: #cbd5e1 !important; }
-        
-        .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div > div {
-            background: rgba(30, 41, 59, 0.6) !important;
-            color: #f8fafc !important;
-            border: 1px solid rgba(56, 189, 248, 0.3) !important;
-            border-radius: 8px !important;
-            transition: all 0.3s;
-        }
-        .stTextInput > div > div > input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
-
-        [data-testid="stMetric"] {
-            background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px;
-            padding: 20px !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        }
-        [data-testid="stMetricLabel"] { color: #94a3b8 !important; font-weight: 600; }
-        [data-testid="stMetricValue"] { background: -webkit-linear-gradient(45deg, #38bdf8, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
-
-        .stButton > button {
-            background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important;
-            color: white !important; border: none !important; border-radius: 8px !important;
-            font-weight: 600 !important; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3); transition: all 0.3s ease;
-        }
-        .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5); }
-
-        .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: rgba(15, 23, 42, 0.5); padding: 6px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
-        .stTabs [data-baseweb="tab"] { background-color: transparent; border-radius: 8px; padding: 10px 24px; color: #94a3b8 !important; font-weight: 600; border: none; transition: all 0.2s; }
-        .stTabs [data-baseweb="tab"]:hover { background-color: rgba(255, 255, 255, 0.05); }
-        .stTabs [aria-selected="true"] { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-bottom: 2px solid #38bdf8 !important; }
-
-        [data-testid="stFileUploadDropzone"] { background: rgba(30, 41, 59, 0.4) !important; border: 2px dashed rgba(56, 189, 248, 0.3) !important; border-radius: 12px; transition: all 0.3s; }
-        [data-testid="stFileUploadDropzone"]:hover { border-color: #38bdf8 !important; }
-        [data-testid="stFileUploadDropzone"] * { color: #cbd5e1 !important; }
-        
-        [data-testid="stChatMessage"] { background-color: rgba(30, 41, 59, 0.7) !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; padding: 12px !important; margin-bottom: 10px; }
-
-        /* 🌟 核心修复：强制所有提示框背景变暗，文字变白 */
-        div[data-testid="stNotification"] {
-            background-color: rgba(30, 41, 59, 0.95) !important;
-            border: 1px solid rgba(56, 189, 248, 0.4) !important;
-            border-radius: 10px !important;
-            backdrop-filter: blur(10px);
-        }
-        div[data-testid="stNotification"] * {
-            color: #f8fafc !important;
-        }
-        
-        [data-testid="stDataFrame"] * { color: #000000 !important; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.set_page_config(page_title="智驭轮枢·工业智能诊断平台", layout="wide", initial_sidebar_state="collapsed")
-inject_custom_css()
-
-# =====================  登录认证拦截模块 =====================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.current_user = ""
-
-if not st.session_state.logged_in:
-    st.markdown("<br><br><br><br>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px 20px 0 0; padding: 30px 30px 10px 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
-            <h2 style="text-align: center; color: #38bdf8; margin-bottom: 5px; font-weight: 800;">智驭轮枢·工业智能诊断平台</h2>
-            <p style="text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 10px; letter-spacing: 2px;">PREDICTIVE MAINTENANCE SYSTEM</p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        tab_login, tab_register = st.tabs(["🔐 账号登录", "📝 工程师注册"])
-        
-        with tab_login:
-            login_user = st.text_input("账号", key="login_user")
-            login_pass = st.text_input("密码", type="password", key="login_pass")
-            if st.button("🚀 安全登录", use_container_width=True):
-                if verify_user(login_user, login_pass):
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = login_user
-                    st.success("身份验证成功，正在进入系统...")
-                    time.sleep(0.8)
-                    st.rerun()
-                else:
-                    st.error("❌ 账号或密码错误")
-                    
-        with tab_register:
-            reg_user = st.text_input("设置新账号", key="reg_user")
-            reg_pass = st.text_input("设置密码", type="password", key="reg_pass")
-            reg_pass2 = st.text_input("确认密码", type="password", key="reg_pass2")
-            if st.button("✨ 注册新账号", use_container_width=True):
-                if not reg_user or not reg_pass:
-                    st.warning("账号和密码不能为空！")
-                elif reg_pass != reg_pass2:
-                    st.error("两次输入的密码不一致！")
-                elif add_user(reg_user, reg_pass):
-                    st.success("🎉 注册成功！请切换到上方【账号登录】进行登录。")
-                else:
-                    st.error("该账号已存在，请换一个用户名。")
-    st.stop()
-
-# =====================  物理尺寸与全局参数配置区 =====================
+# ===================== 🌟 物理尺寸与全局参数 =====================
 BALL_RADIUS = 12.0 
 SEG_LEN = 1024
 STEP = 1024
@@ -163,8 +41,10 @@ RANDOM_SEED = 42
 LABEL_DICT = {0: "正常", 1: "内圈故障", 2: "外圈故障", 3: "滚动体故障"}
 LABEL_LIST = list(LABEL_DICT.values())
 CLASS_NUM = len(LABEL_DICT)
+CWRU_FILE_MAP = {97: 0, 105: 1, 118: 3, 130: 2, 98: 0, 106: 1, 119: 3, 131: 2, 99: 0, 107: 1, 120: 3, 132: 2, 100: 0, 108: 1, 121: 3, 133: 2, 169: 1, 185: 3, 197: 2, 170: 1, 186: 3, 198: 2, 171: 1, 187: 3, 199: 2, 172: 1, 188: 3, 200: 2, 209: 1, 222: 3, 234: 2, 210: 1, 223: 3, 235: 2}
+CWRU_LOAD_MAP = {97: 0, 105: 0, 118: 0, 130: 0, 169: 0, 185: 0, 197: 0, 98: 1, 106: 1, 119: 1, 131: 1, 170: 1, 186: 1, 198: 1, 99: 2, 107: 2, 120: 2, 132: 2, 171: 2, 187: 2, 199: 2, 209: 2, 222: 2, 234: 2, 100: 3, 108: 3, 121: 3, 133: 3, 172: 3, 188: 3, 200: 3, 210: 3, 223: 3, 235: 3}
 
-# ===================== 数据库操作函数 =====================
+# ===================== 🌟 数据库与核心功能函数（必须在前面定义） =====================
 def init_db():
     conn = sqlite3.connect("users.db"); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
@@ -188,11 +68,6 @@ def verify_user(username, password):
     c.execute("SELECT * FROM users WHERE username=? AND password=?", (username, hashed_pw))
     user = c.fetchone(); conn.close(); return user is not None
 
-# ===================== CWRU 映射表 =====================
-CWRU_FILE_MAP = {97: 0, 105: 1, 118: 3, 130: 2, 98: 0, 106: 1, 119: 3, 131: 2, 99: 0, 107: 1, 120: 3, 132: 2, 100: 0, 108: 1, 121: 3, 133: 2, 169: 1, 185: 3, 197: 2, 170: 1, 186: 3, 198: 2, 171: 1, 187: 3, 199: 2, 172: 1, 188: 3, 200: 2, 209: 1, 222: 3, 234: 2, 210: 1, 223: 3, 235: 2}
-CWRU_LOAD_MAP = {97: 0, 105: 0, 118: 0, 130: 0, 169: 0, 185: 0, 197: 0, 98: 1, 106: 1, 119: 1, 131: 1, 170: 1, 186: 1, 198: 1, 99: 2, 107: 2, 120: 2, 132: 2, 171: 2, 187: 2, 199: 2, 209: 2, 222: 2, 234: 2, 100: 3, 108: 3, 121: 3, 133: 3, 172: 3, 188: 3, 200: 3, 210: 3, 223: 3, 235: 3}
-
-# ===================== 扣子 AI 交互函数 =====================
 def chat_with_bot(user_message):
     if not COZE_API_KEY or COZE_API_KEY == "pat_填入你新生成的Token": return "⚠️ 请先配置 COZE_API_KEY。"
     url = "https://api.coze.cn/v3/chat"
@@ -218,7 +93,6 @@ def chat_with_bot(user_message):
         return "未在消息列表中找到 AI 的回复。"
     except Exception as e: return f"网络连接异常: {str(e)}"
 
-# ===================== 核心算法函数 =====================
 def add_awgn(signal, snr_db):
     signal_power = np.mean(signal ** 2); snr_linear = 10 ** (snr_db / 10.0); noise_power = signal_power / snr_linear
     return signal + np.random.normal(0, np.sqrt(noise_power), len(signal))
@@ -280,7 +154,6 @@ def stack_records(records):
     if not records: return None, None
     return np.vstack([r["X"] for r in records]), np.concatenate([[r["label"]] * len(r["X"]) for r in records])
 
-# ===================== 3D 渲染与图表 =====================
 def render_bearing_3d(fault_class):
     fig = go.Figure(); metal_lighting = dict(ambient=0.7, diffuse=0.5, specular=2.0, roughness=0.1, fresnel=0.9)
     inner_path, outer_path, cage_path = "inner_ring.stl", "outer_ring.stl", "cage.stl"
@@ -324,8 +197,89 @@ def plot_signal_analysis(sig, fs):
     axes[1].set_facecolor('#0f172a'); axes[1].plot(freqs[valid_idx], env_spec[valid_idx], color='#ef4444', linewidth=1.2); axes[1].set_title("Hilbert 包络谱 (提取故障特征频率)", fontsize=12, color='#e2e8f0'); axes[1].tick_params(colors='#94a3b8'); axes[1].grid(True, linestyle='--', alpha=0.2, color='#334155')
     plt.tight_layout(); return fig
 
+# ===================== 🎨 样式注入与初始化 =====================
+def inject_custom_css():
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        .stApp { background: radial-gradient(circle at 50% -20%, #1e293b 0%, #0f172a 60%, #020617 100%); font-family: 'Inter', "SimHei", sans-serif; color: #e2e8f0; }
+        header { background: transparent !important; }
+        h1 { background: -webkit-linear-gradient(45deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
+        h2, h3 { color: #f8fafc !important; font-weight: 600 !important; }
+        [data-testid="stSidebar"] { background: rgba(15, 23, 42, 0.6) !important; backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.05); }
+        [data-testid="stSidebar"] * { color: #cbd5e1 !important; }
+        .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div > div { background: rgba(30, 41, 59, 0.6) !important; color: #f8fafc !important; border: 1px solid rgba(56, 189, 248, 0.3) !important; border-radius: 8px !important; transition: all 0.3s; }
+        .stTextInput > div > div > input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+        [data-testid="stMetric"] { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); }
+        [data-testid="stMetricLabel"] { color: #94a3b8 !important; font-weight: 600; }
+        [data-testid="stMetricValue"] { background: -webkit-linear-gradient(45deg, #38bdf8, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
+        .stButton > button { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3); transition: all 0.3s ease; }
+        .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5); }
+        .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: rgba(15, 23, 42, 0.5); padding: 6px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .stTabs [data-baseweb="tab"] { background-color: transparent; border-radius: 8px; padding: 10px 24px; color: #94a3b8 !important; font-weight: 600; border: none; transition: all 0.2s; }
+        .stTabs [data-baseweb="tab"]:hover { background-color: rgba(255, 255, 255, 0.05); }
+        .stTabs [aria-selected="true"] { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-bottom: 2px solid #38bdf8 !important; }
+        [data-testid="stFileUploadDropzone"] { background: rgba(30, 41, 59, 0.4) !important; border: 2px dashed rgba(56, 189, 248, 0.3) !important; border-radius: 12px; transition: all 0.3s; }
+        [data-testid="stFileUploadDropzone"]:hover { border-color: #38bdf8 !important; }
+        [data-testid="stFileUploadDropzone"] * { color: #cbd5e1 !important; }
+        [data-testid="stChatMessage"] { background-color: rgba(30, 41, 59, 0.7) !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; padding: 12px !important; margin-bottom: 10px; }
+        div[data-testid="stNotification"] { background-color: rgba(30, 41, 59, 0.95) !important; border: 1px solid rgba(56, 189, 248, 0.4) !important; border-radius: 10px !important; backdrop-filter: blur(10px); }
+        div[data-testid="stNotification"] * { color: #f8fafc !important; }
+        [data-testid="stDataFrame"] * { color: #000000 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.set_page_config(page_title="智驭轮枢·工业智能诊断平台", layout="wide", initial_sidebar_state="collapsed")
+inject_custom_css()
+init_db()  # 初始化数据库
+
+# ===================== 🔒 登录认证拦截模块 =====================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.current_user = ""
+
+if not st.session_state.logged_in:
+    st.markdown("<br><br><br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        st.markdown("""
+        <div style="background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px 20px 0 0; padding: 30px 30px 10px 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.4);">
+            <h2 style="text-align: center; color: #38bdf8; margin-bottom: 5px; font-weight: 800;">智驭轮枢·工业智能诊断平台</h2>
+            <p style="text-align: center; color: #94a3b8; font-size: 14px; margin-bottom: 10px; letter-spacing: 2px;">PREDICTIVE MAINTENANCE SYSTEM</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        tab_login, tab_register = st.tabs(["🔐 账号登录", "📝 工程师注册"])
+        
+        with tab_login:
+            login_user = st.text_input("账号", key="login_user")
+            login_pass = st.text_input("密码", type="password", key="login_pass")
+            if st.button("🚀 安全登录", use_container_width=True):
+                if verify_user(login_user, login_pass):  # 现在不会报 NameError 了
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = login_user
+                    st.success("身份验证成功，正在进入系统...")
+                    time.sleep(0.8)
+                    st.rerun()
+                else:
+                    st.error("❌ 账号或密码错误")
+                    
+        with tab_register:
+            reg_user = st.text_input("设置新账号", key="reg_user")
+            reg_pass = st.text_input("设置密码", type="password", key="reg_pass")
+            reg_pass2 = st.text_input("确认密码", type="password", key="reg_pass2")
+            if st.button("✨ 注册新账号", use_container_width=True):
+                if not reg_user or not reg_pass:
+                    st.warning("账号和密码不能为空！")
+                elif reg_pass != reg_pass2:
+                    st.error("两次输入的密码不一致！")
+                elif add_user(reg_user, reg_pass):
+                    st.success("🎉 注册成功！请切换到上方【账号登录】进行登录。")
+                else:
+                    st.error("该账号已存在，请换一个用户名。")
+    st.stop()
+
 # ===================== 主界面 =====================
-init_db()
 st.title("🛞 智驭轮枢·跨设备高泛化轴承故障诊断系统")
 
 with st.sidebar:
