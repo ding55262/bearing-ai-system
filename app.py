@@ -15,6 +15,7 @@ import time
 import sqlite3
 import hashlib
 import plotly.graph_objects as go
+import plotly.subplots as sp
 import trimesh
 
 warnings.filterwarnings("ignore")
@@ -44,7 +45,7 @@ CLASS_NUM = len(LABEL_DICT)
 CWRU_FILE_MAP = {97: 0, 105: 1, 118: 3, 130: 2, 98: 0, 106: 1, 119: 3, 131: 2, 99: 0, 107: 1, 120: 3, 132: 2, 100: 0, 108: 1, 121: 3, 133: 2, 169: 1, 185: 3, 197: 2, 170: 1, 186: 3, 198: 2, 171: 1, 187: 3, 199: 2, 172: 1, 188: 3, 200: 2, 209: 1, 222: 3, 234: 2, 210: 1, 223: 3, 235: 2}
 CWRU_LOAD_MAP = {97: 0, 105: 0, 118: 0, 130: 0, 169: 0, 185: 0, 197: 0, 98: 1, 106: 1, 119: 1, 131: 1, 170: 1, 186: 1, 198: 1, 99: 2, 107: 2, 120: 2, 132: 2, 171: 2, 187: 2, 199: 2, 209: 2, 222: 2, 234: 2, 100: 3, 108: 3, 121: 3, 133: 3, 172: 3, 188: 3, 200: 3, 210: 3, 223: 3, 235: 3}
 
-# ===================== 🌟 数据库与核心功能函数（必须在前面定义） =====================
+# ===================== 🌟 数据库与核心功能函数 =====================
 def init_db():
     conn = sqlite3.connect("users.db"); c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
@@ -154,6 +155,7 @@ def stack_records(records):
     if not records: return None, None
     return np.vstack([r["X"] for r in records]), np.concatenate([[r["label"]] * len(r["X"]) for r in records])
 
+# ===================== 3D 渲染 =====================
 def render_bearing_3d(fault_class):
     fig = go.Figure(); metal_lighting = dict(ambient=0.7, diffuse=0.5, specular=2.0, roughness=0.1, fresnel=0.9)
     inner_path, outer_path, cage_path = "inner_ring.stl", "outer_ring.stl", "cage.stl"
@@ -190,12 +192,40 @@ def render_bearing_3d(fault_class):
     fig.update_layout(scene=dict(xaxis=dict(showbackground=False, showgrid=False, visible=False), yaxis=dict(showbackground=False, showgrid=False, visible=False), zaxis=dict(showbackground=False, showgrid=False, visible=False), aspectmode='data', camera=dict(up=dict(x=0, y=0, z=1), eye=dict(x=1.5, y=1.5, z=1.5))), margin=dict(l=0, r=0, b=0, t=0), height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     return fig
 
-def plot_signal_analysis(sig, fs):
-    plot_len = min(len(sig), 4096); time = np.arange(plot_len) / fs; fig, axes = plt.subplots(2, 1, figsize=(10, 6), facecolor='#0f172a')
-    axes[0].set_facecolor('#0f172a'); axes[0].plot(time, sig[:plot_len], color='#38bdf8', linewidth=0.8); axes[0].set_title("时域波形 (局部截取)", fontsize=12, color='#e2e8f0'); axes[0].tick_params(colors='#94a3b8'); axes[0].grid(True, linestyle='--', alpha=0.2, color='#334155')
-    env = np.abs(hilbert(sig)); env_spec = np.abs(np.fft.rfft(env - np.mean(env))); freqs = np.fft.rfftfreq(len(sig), d=1/fs); max_freq = min(500, fs / 2); valid_idx = freqs <= max_freq
-    axes[1].set_facecolor('#0f172a'); axes[1].plot(freqs[valid_idx], env_spec[valid_idx], color='#ef4444', linewidth=1.2); axes[1].set_title("Hilbert 包络谱 (提取故障特征频率)", fontsize=12, color='#e2e8f0'); axes[1].tick_params(colors='#94a3b8'); axes[1].grid(True, linestyle='--', alpha=0.2, color='#334155')
-    plt.tight_layout(); return fig
+# ===================== 🌟 信号特征绘图函数 (改用 Plotly，完美解决乱码) =====================
+def plot_signal_analysis_plotly(sig, fs):
+    plot_len = min(len(sig), 4096)
+    time = np.arange(plot_len) / fs
+    
+    env = np.abs(hilbert(sig))
+    env_spec = np.abs(np.fft.rfft(env - np.mean(env)))
+    freqs = np.fft.rfftfreq(len(sig), d=1/fs)
+    max_freq = min(500, fs / 2)
+    valid_idx = freqs <= max_freq
+    
+    # 创建上下两个子图
+    fig = sp.make_subplots(rows=2, cols=1, subplot_titles=("时域波形 (局部截取)", "Hilbert 包络谱 (提取故障特征频率)"), vertical_spacing=0.15)
+    
+    # 时域波形
+    fig.add_trace(go.Scatter(x=time, y=sig[:plot_len], mode='lines', line=dict(color='#38bdf8', width=1), name="时域波形"), row=1, col=1)
+    
+    # 包络谱
+    fig.add_trace(go.Scatter(x=freqs[valid_idx], y=env_spec[valid_idx], mode='lines', line=dict(color='#ef4444', width=1.5), name="包络谱"), row=2, col=1)
+    
+    fig.update_layout(
+        height=600,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(30, 41, 59, 0.5)',
+        font=dict(color='#e2e8f0'), # 全局字体颜色
+        margin=dict(l=40, r=20, t=40, b=40),
+        showlegend=False
+    )
+    fig.update_xaxes(title_text="时间 (s)", gridcolor='rgba(255,255,255,0.1)', row=1, col=1)
+    fig.update_yaxes(title_text="幅值", gridcolor='rgba(255,255,255,0.1)', row=1, col=1)
+    fig.update_xaxes(title_text="频率 (Hz)", gridcolor='rgba(255,255,255,0.1)', row=2, col=1)
+    fig.update_yaxes(title_text="包络幅值", gridcolor='rgba(255,255,255,0.1)', row=2, col=1)
+    
+    return fig
 
 # ===================== 🎨 样式注入与初始化 =====================
 def inject_custom_css():
@@ -207,7 +237,12 @@ def inject_custom_css():
         h1 { background: -webkit-linear-gradient(45deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
         h2, h3 { color: #f8fafc !important; font-weight: 600 !important; }
         [data-testid="stSidebar"] { background: rgba(15, 23, 42, 0.6) !important; backdrop-filter: blur(20px); border-right: 1px solid rgba(255, 255, 255, 0.05); }
-        [data-testid="stSidebar"] * { color: #cbd5e1 !important; }
+        
+        /* 🌟 核心修复：强制所有小字（label）变亮 */
+        .stApp label, .stApp p, .stApp span, [data-testid="stWidgetLabel"] *, [data-testid="stFileUploadDropzone"] * {
+            color: #cbd5e1 !important;
+        }
+        
         .stTextInput > div > div > input, .stNumberInput > div > div > input, .stSelectbox > div > div > div { background: rgba(30, 41, 59, 0.6) !important; color: #f8fafc !important; border: 1px solid rgba(56, 189, 248, 0.3) !important; border-radius: 8px !important; transition: all 0.3s; }
         .stTextInput > div > div > input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
         [data-testid="stMetric"] { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2); }
@@ -215,13 +250,15 @@ def inject_custom_css():
         [data-testid="stMetricValue"] { background: -webkit-linear-gradient(45deg, #38bdf8, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800 !important; }
         .stButton > button { background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: 600 !important; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.3); transition: all 0.3s ease; }
         .stButton > button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(14, 165, 233, 0.5); }
+        
+        /* 🌟 修复 Tabs 未选中状态文字太暗的问题 */
         .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: rgba(15, 23, 42, 0.5); padding: 6px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05); }
         .stTabs [data-baseweb="tab"] { background-color: transparent; border-radius: 8px; padding: 10px 24px; color: #94a3b8 !important; font-weight: 600; border: none; transition: all 0.2s; }
         .stTabs [data-baseweb="tab"]:hover { background-color: rgba(255, 255, 255, 0.05); }
         .stTabs [aria-selected="true"] { background: rgba(56, 189, 248, 0.15) !important; color: #38bdf8 !important; border-bottom: 2px solid #38bdf8 !important; }
+        
         [data-testid="stFileUploadDropzone"] { background: rgba(30, 41, 59, 0.4) !important; border: 2px dashed rgba(56, 189, 248, 0.3) !important; border-radius: 12px; transition: all 0.3s; }
         [data-testid="stFileUploadDropzone"]:hover { border-color: #38bdf8 !important; }
-        [data-testid="stFileUploadDropzone"] * { color: #cbd5e1 !important; }
         [data-testid="stChatMessage"] { background-color: rgba(30, 41, 59, 0.7) !important; border: 1px solid rgba(255, 255, 255, 0.05) !important; border-radius: 12px !important; padding: 12px !important; margin-bottom: 10px; }
         div[data-testid="stNotification"] { background-color: rgba(30, 41, 59, 0.95) !important; border: 1px solid rgba(56, 189, 248, 0.4) !important; border-radius: 10px !important; backdrop-filter: blur(10px); }
         div[data-testid="stNotification"] * { color: #f8fafc !important; }
@@ -231,7 +268,7 @@ def inject_custom_css():
 
 st.set_page_config(page_title="智驭轮枢·工业智能诊断平台", layout="wide", initial_sidebar_state="collapsed")
 inject_custom_css()
-init_db()  # 初始化数据库
+init_db()
 
 # ===================== 🔒 登录认证拦截模块 =====================
 if "logged_in" not in st.session_state:
@@ -255,7 +292,7 @@ if not st.session_state.logged_in:
             login_user = st.text_input("账号", key="login_user")
             login_pass = st.text_input("密码", type="password", key="login_pass")
             if st.button("🚀 安全登录", use_container_width=True):
-                if verify_user(login_user, login_pass):  # 现在不会报 NameError 了
+                if verify_user(login_user, login_pass):
                     st.session_state.logged_in = True
                     st.session_state.current_user = login_user
                     st.success("身份验证成功，正在进入系统...")
@@ -398,7 +435,10 @@ if "model" in st.session_state:
                         else: st.error(f"🚨 **异常警报**：红圈所示输入端轴承检测到 **{LABEL_DICT[final]}**！")
                     else: st.warning("⚠️ 未找到减速器图片，请将图片命名为 `gearbox.png` 放入根目录。")
                 with tab_micro: st.plotly_chart(render_bearing_3d(LABEL_DICT[final]), use_container_width=True)
-                with tab_signal: st.pyplot(plot_signal_analysis(sig, pred_fs))
+                with tab_signal: 
+                    # 🌟 这里调用新的 Plotly 画图函数
+                    fig_signal = plot_signal_analysis_plotly(sig, pred_fs)
+                    st.plotly_chart(fig_signal, use_container_width=True)
                 with tab_math:
                     st.latex(r"Kurtosis = \frac{\frac{1}{N} \sum_{i=1}^{N} (x_i - \bar{x})^4}{\sigma^4}"); st.caption("**峭度**：对微弱冲击极其敏感。")
                     st.latex(r"\hat{x}(t) = \frac{1}{\pi} \int_{-\infty}^{\infty} \frac{x(\tau)}{t - \tau} d\tau"); st.caption("**希尔伯特变换**：用于提取包络信号。")
