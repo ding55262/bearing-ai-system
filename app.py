@@ -270,7 +270,7 @@ def stack_records(records):
 # ===================== 3D 渲染与图表 =====================
 def render_bearing_3d(fault_class):
     fig = go.Figure(); metal_lighting = dict(ambient=0.7, diffuse=0.5, specular=2.0, roughness=0.1, fresnel=0.9)
-    inner_path, outer_path, cage_path = "assets/bearing/inner_ring.stl", "assets/bearing/outer_ring.stl", "assets/bearing/cage.stl"
+    inner_path, outer_path, cage_path = "inner_ring.stl", "outer_ring.stl", "cage.stl"
     inner_v, outer_v = None, None
     metal_color, fault_color, cage_color = "#6B6B6B", "#CC0000", "#CD7F32"  
     if os.path.exists(inner_path):
@@ -423,9 +423,9 @@ if "model" in st.session_state:
                 st.markdown("---")
                 tab_macro, tab_micro, tab_signal, tab_math = st.tabs(["🏭 宏观：减速器", "⚙️ 微观：轴承 3D", "📊 信号解析", "📐 数学模型"])
                 with tab_macro:
-                    if os.path.exists("assets/gearbox.png"):
+                    if os.path.exists("gearbox.png"):
                         c1, c2, c3 = st.columns([1, 2, 1])
-                        with c2: st.image("assets/gearbox.png", use_container_width=True)
+                        with c2: st.image("gearbox.png", use_container_width=True)
                         if LABEL_DICT[final] == "正常": st.success("✅ 减速器整体运行平稳。")
                         else: st.error(f"🚨 **异常警报**：红圈所示输入端轴承检测到 **{LABEL_DICT[final]}**！")
                     else: st.warning("⚠️ 未找到减速器图片，请将图片命名为 `gearbox.png` 放入 assets 文件夹。")
